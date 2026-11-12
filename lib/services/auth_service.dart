@@ -43,6 +43,16 @@ class UserApiService {
     await _api.delete('/users/$id');
   }
 
+  Future<UserModel> banUser(String id) async {
+    final data = await _api.post('/users/$id/ban');
+    return UserModel.fromJson(data);
+  }
+
+  Future<UserModel> unbanUser(String id) async {
+    final data = await _api.post('/users/$id/unban');
+    return UserModel.fromJson(data);
+  }
+
   Future<UserModel> updateProfile(UserModel user) async {
     final data = await _api.patch('/users/${user.id}', user.toProfileBody());
     return UserModel.fromJson(data).mergedWith(user);

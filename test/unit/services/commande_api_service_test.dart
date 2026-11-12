@@ -214,16 +214,35 @@ void main() {
         statusCode: 200,
         data: ok({
           'rows': [
-            {'id': '1', 'status': 'Livrer', 'paid': false, 'produit_prix_total': 20},
-            {'id': '2', 'status': 'Livré', 'paid': false, 'produit_prix_total': 10},
-            {'id': '3', 'status': 'Livrer', 'paid': true, 'produit_prix_total': 50},
+            {
+              'id': '1',
+              'status': 'Livrer',
+              'paid': false,
+              'produit_prix_total': 20,
+              'frais_livraison': 5,
+            },
+            {
+              'id': '2',
+              'status': 'Livré',
+              'paid': false,
+              'produit_prix_total': 10,
+              'frais_livraison': 2,
+            },
+            {
+              'id': '3',
+              'status': 'Livrer',
+              'paid': true,
+              'produit_prix_total': 50,
+              'frais_livraison': 7,
+            },
           ],
           'total': 3,
         }),
       );
     });
     final total = await CommandeApiService(api).unpaidDeliveredTotalForUser('8');
-    expect(total, 30);
+    // (20-5) + (10-2) = 23
+    expect(total, 23);
   });
 
   test('listColisDuJour hits /colis-du-jour', () async {

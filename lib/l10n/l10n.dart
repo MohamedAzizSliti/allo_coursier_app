@@ -122,6 +122,22 @@ class AppStrings {
   String get changePassword => _t('تغيير كلمة المرور', 'Changer le mot de passe');
   String get mustChangePasswordTitle =>
       _t('يجب تغيير كلمة المرور', 'Changement de mot de passe requis');
+  String get passwordStep => _t('كلمة المرور', 'Mot de passe');
+  String get contactStep => _t('بيانات الاتصال', 'Coordonnées');
+  String get choosePasswordTitle =>
+      _t('اختر كلمة المرور', 'Choisissez votre mot de passe');
+  String get choosePasswordBody => _t(
+        'أُنشئ حسابك بكلمة مرور مؤقتة. اختر كلمتك للدخول إلى مساحتك.',
+        'Votre compte a été créé avec un mot de passe provisoire. Choisissez le vôtre pour accéder à votre espace.',
+      );
+  String get contactStepTitle => _t('بياناتك', 'Vos coordonnées');
+  String get contactStepBody => _t(
+        'أضف رقم هاتفك وبريدك حتى نتمكن من التواصل معك. يمكنك المتابعة دون ذلك.',
+        'Ajoutez votre numéro et votre e-mail pour qu’on puisse vous joindre. Vous pouvez continuer sans les renseigner.',
+      );
+  String get savePassword => _t('حفظ كلمة المرور', 'Enregistrer le mot de passe');
+  String get continueWithoutDetails =>
+      _t('المتابعة دون إدخال', 'Continuer sans renseigner');
   String get signInAgain => _t(
         'سجّل الدخول من جديد بكلمة المرور الجديدة',
         'Reconnectez-vous avec le nouveau mot de passe',
@@ -153,6 +169,11 @@ class AppStrings {
       _t('تعذر تحميل الملف الشخصي.', 'Impossible de charger le profil.');
   String get availableAmount => _t('المبلغ المتاح', 'Montant Disponible');
   String get unavailableAmount => _t('المبلغ غير المتاح', 'Montant Non Disponible');
+  String get paidAmountLabel => _t('المبلغ المدفوع', 'Montant payé');
+  String get remainingAmountLabel => _t('المبلغ المتبقي', 'Montant reste');
+  String get payoutAmountHint =>
+      _t('المبلغ النقدي (اختياري)', 'Montant remis (optionnel)');
+  String get netRemainingLine => _t('المتبقي الصافي', 'Reste net');
   String get unavailable => _t('غير متوفر', 'Indisponible');
   String get language => _t('اللغة', 'Langue');
   String get arabic => _t('العربية', 'Arabe');
@@ -220,11 +241,18 @@ class AppStrings {
   String get orders => _t('الطلبات', 'Commandes');
   String get add => _t('إضافة', 'Ajouter');
   String get transactions => _t('المعاملات', 'Transactions');
+  String get myMoney => _t('أموالي', 'Mon argent');
+  String get moneyHint => _t(
+        'المبلغ الصافي (سعر الطرد − رسوم التوصيل).',
+        'Montant net (prix colis − frais de livraison).',
+      );
   String get senderDashboard =>
       _t('لوحة تحكم المرسِل', 'Tableau de Bord Expéditeur');
   String get myOrders => _t('طلباتي', 'Mes Commandes');
   String get addOrder => _t('إضافة طلب', 'Ajouter une Commande');
   String get myTransactions => _t('معاملاتي', 'Mes Transactions');
+  String colisCount(int n) => _t('$n طرد', '$n colis');
+
   String get driverDashboard =>
       _t('لوحة تحكم الموصّل', 'Tableau de Bord Livreur');
   String get circuit => _t('المسار', 'Circuit');
@@ -394,6 +422,12 @@ class AppStrings {
         'Paiement confirmé ($credits crédit(s), $penalties pénalité(s)).',
       );
   String get paymentError => _t('خطأ أثناء الدفع', 'Erreur lors du paiement');
+  String get selectAllUnpaid => _t('تحديد الكل', 'Tout sélectionner');
+  String get clearSelection => _t('إلغاء التحديد', 'Tout désélectionner');
+  String selectedForPayment(int n) =>
+      _t('$n محدّد', '$n sélectionné(s)');
+  String get transferToPaid =>
+      _t('نقل إلى مدفوع', 'Passer en Payé');
   String amountLine(String amount) => _t('المبلغ : $amount د.ت', 'Montant : $amount TND');
 
   String get vehicleList => _t('قائمة المركبات', 'Liste des Véhicules');
@@ -462,9 +496,43 @@ class AppStrings {
   String get farGovernorates =>
       _t('9 د.ت (ولايات بعيدة)', '9 DT (gouvernorats éloignés)');
   String get extraWeightFee => _t(
-        'إذا تجاوز الوزن 10 كغ، يُحتسب 1 د.ت إضافي لكل كغ.',
-        'Si le poids dépasse 10 kg, 1 DT supplémentaire est facturé par kg.',
+        'إذا تجاوز الوزن 10 كغ، يُحتسب 1 د.ت لكل كغ من الوزن الكلي.',
+        'Si le poids dépasse 10 kg, le tarif est 1 DT × poids total (kg).',
       );
+  String deliveryPlanDays(String days) => _t(
+        'أيام التوصيل : $days',
+        'Jours de livraison : $days',
+      );
+  String get noDeliveryPlanDays => _t(
+        'لا توجد أيام توصيل لهذه الولاية في الخطة.',
+        'Aucun jour de livraison pour ce gouvernorat dans le plan.',
+      );
+  String get manageParcels => _t('إدارة الطرود', 'Gestion des colis');
+  String get banAccount => _t('حظر الحساب', 'Bannir le compte');
+  String get unbanAccount => _t('رفع الحظر', 'Débannir le compte');
+  String get deleteAccount => _t('حذف الحساب', 'Supprimer le compte');
+  String get confirmBanAccount => _t(
+        'هل تريد حظر هذا الحساب؟ لن يتمكن من تسجيل الدخول.',
+        'Voulez-vous bannir ce compte ? Il ne pourra plus se connecter.',
+      );
+  String get confirmDeleteAccount => _t(
+        'هل تريد حذف هذا الحساب نهائياً؟',
+        'Voulez-vous vraiment supprimer ce compte ?',
+      );
+  String get accountBanned => _t('تم حظر الحساب', 'Compte banni');
+  String get accountUnbanned => _t('تم رفع الحظر', 'Compte débanni');
+  String get accountDeleted => _t('تم حذف الحساب', 'Compte supprimé');
+  String get banned => _t('محظور', 'Banni');
+  String get monthlyInvoice => _t('فاتورة الشهر', 'Facture du mois');
+  String get chooseMonth => _t('اختر الشهر', 'Choisir le mois');
+  String get deliveredYes => _t('تم التسليم', 'Livré');
+  String get deliveredNo => _t('لم يُسلَّم', 'Non livré');
+  String get fromDate => _t('من تاريخ', 'Du');
+  String get toDate => _t('إلى تاريخ', 'Au');
+  String get agendaAllDays => _t('كل الأيام', 'Tous les jours');
+  String get agendaToday => _t('اليوم', "Aujourd'hui");
+  String get searchByNameOrPhone =>
+      _t('الاسم، البريد، الهاتف، الشركة', 'Nom, email, téléphone, société');
   String get signup => _t('التسجيل', 'Inscription');
   String get accountCreated =>
       _t('تم إنشاء الحساب بنجاح', 'Compte créé avec succès !');

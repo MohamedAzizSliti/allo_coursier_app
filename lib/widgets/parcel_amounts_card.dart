@@ -8,10 +8,14 @@ class ParcelAmountsCard extends StatelessWidget {
     super.key,
     required this.colisPrice,
     required this.deliveryFee,
+    this.showDeliveryFee = true,
   });
 
   final double colisPrice;
   final double deliveryFee;
+
+  /// When false (expéditeur money view), only prix colis is shown.
+  final bool showDeliveryFee;
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +26,7 @@ class ParcelAmountsCard extends StatelessWidget {
       child: ParcelAmountLines(
         colisPrice: colisPrice,
         deliveryFee: deliveryFee,
+        showDeliveryFee: showDeliveryFee,
       ),
     );
   }
@@ -33,11 +38,15 @@ class ParcelAmountLines extends StatelessWidget {
     required this.colisPrice,
     required this.deliveryFee,
     this.dense = false,
+    this.showDeliveryFee = true,
   });
 
   final double colisPrice;
   final double deliveryFee;
   final bool dense;
+
+  /// Staff see fee + total; expéditeur sees prix colis only.
+  final bool showDeliveryFee;
 
   double get total => colisPrice + deliveryFee;
 
@@ -45,6 +54,14 @@ class ParcelAmountLines extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = context.s;
     final gap = dense ? 2.0 : 8.0;
+    if (!showDeliveryFee) {
+      return _AmountRow(
+        label: s.colisPrice,
+        amount: s.amountTnd(colisPrice.toStringAsFixed(2)),
+        emphasize: true,
+        dense: dense,
+      );
+    }
     return Column(
       children: [
         _AmountRow(

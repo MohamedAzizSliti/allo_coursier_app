@@ -17,12 +17,13 @@ Future<void> printAndShowPDF({
   required String bonLivraison,
 }) async {
   final sorted = sortCircuitOrders(orders);
+  final logoBytes = await loadPdfLogoBytes();
+  final theme = await loadPdfTheme();
   final pdf = pw.Document(
     title: bonLivraison,
     author: OfficeContact.name,
+    theme: theme,
   );
-
-  final logoBytes = await loadPdfLogoBytes();
 
   const ink = PdfColors.black;
   const line = 0.7;
@@ -59,6 +60,7 @@ Future<void> printAndShowPDF({
     pw.MultiPage(
       pageFormat: PdfPageFormat.a4.landscape,
       margin: const pw.EdgeInsets.fromLTRB(16, 18, 16, 36),
+      theme: theme,
       header: (context) {
         return pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,

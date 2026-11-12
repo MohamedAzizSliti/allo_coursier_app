@@ -52,9 +52,13 @@ void main() {
       'name': 'Mouna',
       'role': 'business_client',
       'montant_disponible': 12.5,
+      'montant_paye': 40,
+      'montant_reste': 25.5,
     });
     expect(u.id, '203');
     expect(u.montantDisponible, 12.5);
+    expect(u.montantPaye, 40);
+    expect(u.montantReste, 25.5);
     expect(u.needsCompletion, isTrue);
   });
 

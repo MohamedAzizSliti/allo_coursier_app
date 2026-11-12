@@ -22,20 +22,16 @@ class ClientDashboard extends StatefulWidget {
 
 class _ClientDashboardState extends State<ClientDashboard> {
   int _selectedIndex = 0;
-
-  List<Widget> _screens() => [
-        DashboardScreen(onSeeAll: () => _onItemTapped(1)),
-        const OrdersScreen(),
-        const AddOrderScreen(),
-        const TransactionsPage(),
-        NotificationsScreen(active: _selectedIndex == 4),
-      ];
+  late final Widget _home = DashboardScreen(onSeeAll: () => _onItemTapped(1));
+  static const _orders = OrdersScreen();
+  static const _add = AddOrderScreen();
+  static const _money = TransactionsPage();
 
   List<String> _titles(AppStrings s) => [
         s.home,
         s.orders,
         s.add,
-        s.transactions,
+        s.myMoney,
         s.notifications,
       ];
 
@@ -94,7 +90,13 @@ class _ClientDashboardState extends State<ClientDashboard> {
           Expanded(
             child: LazyIndexedStack(
               index: _selectedIndex,
-              children: _screens(),
+              children: [
+                _home,
+                _orders,
+                _add,
+                _money,
+                NotificationsScreen(active: _selectedIndex == 4),
+              ],
             ),
           ),
         ],
@@ -120,7 +122,10 @@ class _ClientDashboardState extends State<ClientDashboard> {
             BottomNavigationBarItem(icon: const Icon(Icons.home_outlined), label: s.home),
             BottomNavigationBarItem(icon: const Icon(Icons.list_alt_outlined), label: s.orders),
             BottomNavigationBarItem(icon: const Icon(Icons.add_circle_outline), label: s.add),
-            BottomNavigationBarItem(icon: const Icon(Icons.receipt_long_outlined), label: s.transactions),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.account_balance_wallet_outlined),
+              label: s.myMoney,
+            ),
             BottomNavigationBarItem(
               icon: NotificationBell(
                 unread: NotificationInbox.instance.unread,

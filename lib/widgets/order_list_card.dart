@@ -13,11 +13,15 @@ class OrderListCard extends StatelessWidget {
     required this.commande,
     required this.onView,
     this.onPrint,
+    this.showDeliveryFee = true,
   });
 
   final CommandeModel commande;
   final VoidCallback onView;
   final VoidCallback? onPrint;
+
+  /// Expéditeur money view: prix colis only (no frais de livraison).
+  final bool showDeliveryFee;
 
   @override
   Widget build(BuildContext context) {
@@ -54,9 +58,32 @@ class OrderListCard extends StatelessWidget {
                   colisPrice: commande.produitPrixTotal,
                   deliveryFee: commande.fraisLivraison,
                   dense: true,
+                  showDeliveryFee: showDeliveryFee,
                 ),
                 const SizedBox(height: 6),
-                StatusChip(status: commande.status),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    StatusChip(status: commande.status),
+                    Chip(
+                      label: Text(commande.paid ? s.paid : s.unpaid),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: EdgeInsets.zero,
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: commande.paid
+                            ? Colors.green.shade800
+                            : Colors.orange.shade900,
+                      ),
+                      backgroundColor: commande.paid
+                          ? Colors.green.shade50
+                          : Colors.orange.shade50,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

@@ -4,10 +4,9 @@ import '../l10n/l10n.dart';
 import '../models/user_model.dart';
 import '../services/api_client.dart';
 import '../services/auth_api_service.dart';
-import '../services/commande_api_service.dart';
 import '../services/session_controller.dart';
 import '../theme/app_theme.dart';
-import 'business_client/add_order_screen.dart';
+import 'business_client/add_order_screen.dart' show governorateLabel;
 import 'onboarding/complete_profile_screen.dart';
 import '../widgets/error_banner.dart';
 
@@ -20,10 +19,8 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final AuthApiService _authService = AuthApiService();
-  final CommandeApiService _commandeService = CommandeApiService();
 
   UserModel? _user;
-  double _montantNonDisponible = 0;
   String? _error;
 
   @override
@@ -43,25 +40,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _error = null;
       });
 
-      if (user.role == 'business_client') {
-        await _fetchClientMontants(user.id);
-      }
     } on AlloException catch (_) {
       if (!mounted) return;
       if (_user == null) {
         setState(() => _error = context.s.cannotLoadProfile);
       }
-    }
-  }
-
-  Future<void> _fetchClientMontants(String userId) async {
-    if (userId.isEmpty) return;
-    try {
-      final held = await _commandeService.unpaidDeliveredTotalForUser(userId);
-      if (!mounted) return;
-      setState(() => _montantNonDisponible = held);
-    } catch (e) {
-      debugPrint('Error fetching montants: $e');
     }
   }
 
@@ -112,8 +95,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (_user!.role == 'business_client') ...[
                     const SizedBox(height: 16),
                     ProfileFinanceCard(
-                      available: _user!.montantDisponible,
-                      unavailable: _montantNonDisponible,
+                      available: _user!.montantPaye,
+                      unavailable: _user!.montantReste,
+                      availableLabel: context.s.paidAmountLabel,
+                      unavailableLabel: context.s.remainingAmountLabel,
                     ),
                   ],
                 ],
@@ -381,10 +366,14 @@ class ProfileFinanceCard extends StatelessWidget {
     super.key,
     required this.available,
     required this.unavailable,
+    this.availableLabel,
+    this.unavailableLabel,
   });
 
   final double available;
   final double unavailable;
+  final String? availableLabel;
+  final String? unavailableLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -409,7 +398,7 @@ class ProfileFinanceCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _MoneyTile(
-                  label: s.availableAmount,
+                  label: availableLabel ?? s.availableAmount,
                   amount: s.amountTnd(available.toStringAsFixed(2)),
                   icon: Icons.account_balance_wallet_outlined,
                   color: const Color(0xFF15803D),
@@ -419,7 +408,7 @@ class ProfileFinanceCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: _MoneyTile(
-                  label: s.unavailableAmount,
+                  label: unavailableLabel ?? s.unavailableAmount,
                   amount: s.amountTnd(unavailable.toStringAsFixed(2)),
                   icon: Icons.lock_outline,
                   color: const Color(0xFFB91C1C),

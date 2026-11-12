@@ -23,6 +23,7 @@ void main() {
       'vehicle_id': '33',
       'status': 'En cours',
       'paid': false,
+      'montant_paye': 12.5,
       'livraison': 'Pickup',
       'frais_livraison': 8,
       'date': '2026-10-02T09:07:09.517157',
@@ -33,6 +34,7 @@ void main() {
     expect(commande.clientNom, 'Ali');
     expect(commande.produitPrixTotal, 103);
     expect(commande.fraisLivraison, 8);
+    expect(commande.montantPaye, 12.5);
     expect(commande.totalDue, 111);
     expect(commande.produitList, isNotEmpty);
     expect(commande.produitPrixTotal.toStringAsFixed(2), '103.00');
@@ -85,13 +87,26 @@ void main() {
     ]);
   });
 
-  test('unpaidDeliveredTotal sums Livrer/Livré unpaid parcels', () {
+  test('unpaidDeliveredTotal sums remaining net on unpaid delivered parcels', () {
     const rows = [
-      CommandeModel(id: '1', status: 'Livrer', paid: false, produitPrixTotal: 20),
-      CommandeModel(id: '2', status: 'Livré', paid: false, produitPrixTotal: 15),
+      CommandeModel(
+        id: '1',
+        status: 'Livrer',
+        paid: false,
+        produitPrixTotal: 20,
+        fraisLivraison: 5,
+      ),
+      CommandeModel(
+        id: '2',
+        status: 'Livré',
+        paid: false,
+        produitPrixTotal: 15,
+        fraisLivraison: 5,
+      ),
       CommandeModel(id: '3', status: 'Livrer', paid: true, produitPrixTotal: 99),
       CommandeModel(id: '4', status: 'En cours', paid: false, produitPrixTotal: 40),
     ];
-    expect(unpaidDeliveredTotal(rows), 35);
+    // (20-5) + (15-5) = 25
+    expect(unpaidDeliveredTotal(rows), 25);
   });
 }

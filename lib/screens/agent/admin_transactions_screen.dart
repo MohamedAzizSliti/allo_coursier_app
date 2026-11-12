@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../domain/colis_payout.dart';
 import '../../l10n/l10n.dart';
 import '../../models/commande_model.dart';
+import '../../services/api_client.dart';
 import '../../services/commande_api_service.dart';
+import '../../services/payment_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_banner.dart';
 import 'commande_details_screen.dart';
 
 /// Admin ledger: delivered unpaid vs paid parcels (web `/admin-portal/transactions`).
+/// On **Non payé**, admin can select colis and confirm payment → **Payé**.
 class AdminTransactionsScreen extends StatefulWidget {
   const AdminTransactionsScreen({super.key});
 
@@ -20,20 +24,31 @@ class AdminTransactionsScreen extends StatefulWidget {
 
 class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
   final CommandeApiService _service = CommandeApiService();
+  final PaymentApiService _paymentService = PaymentApiService();
   final _searchController = TextEditingController();
+  final _amountController = TextEditingController();
   final _scroll = ScrollController();
 
   /// API shipment: Livré = unpaid delivered, Payé = paid.
   String _tab = 'Livré';
   List<CommandeModel> _rows = [];
+  final Set<String> _selected = {};
   int _total = 0;
   int _page = 0;
   bool _loading = true;
   bool _loadingMore = false;
+  bool _confirming = false;
   String? _error;
   double _amount = 0;
   double _fees = 0;
   bool _sumsLoading = true;
+
+  bool get _isUnpaidTab => _tab == 'Livré';
+
+  double get _netSum {
+    final net = _amount - _fees;
+    return net > 0 ? net : 0;
+  }
 
   @override
   void initState() {
@@ -45,6 +60,7 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _amountController.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -58,6 +74,7 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
   }
 
   Future<void> _reload() async {
+    _selected.clear();
     await Future.wait([_fetch(reset: true), _loadSums()]);
   }
 
@@ -101,6 +118,7 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
         if (reset) {
           _rows = page.rows;
           _page = 1;
+          _selected.removeWhere((id) => !_rows.any((o) => o.id == id));
         } else {
           _rows = [..._rows, ...page.rows];
           _page += 1;
@@ -122,8 +140,74 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
 
   void _setTab(String tab) {
     if (_tab == tab) return;
-    setState(() => _tab = tab);
+    setState(() {
+      _tab = tab;
+      _selected.clear();
+    });
     _reload();
+  }
+
+  void _toggle(String id) {
+    setState(() {
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+      } else {
+        _selected.add(id);
+      }
+    });
+  }
+
+  void _selectAllLoaded() {
+    setState(() {
+      _selected
+        ..clear()
+        ..addAll(_rows.where((o) => !o.paid).map((o) => o.id));
+    });
+  }
+
+  void _clearSelection() => setState(() => _selected.clear());
+
+  Future<void> _confirmSelected() async {
+    if (_selected.isEmpty || _confirming) return;
+    final ids = _selected.toList();
+    final rawAmount = _amountController.text.trim().replaceAll(',', '.');
+    double? amount;
+    if (rawAmount.isNotEmpty) {
+      amount = double.tryParse(rawAmount);
+      if (amount == null || amount <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.s.paymentError)),
+        );
+        return;
+      }
+    }
+    setState(() => _confirming = true);
+    try {
+      final result = await _paymentService.confirmPayments(ids, amount: amount);
+      if (!mounted) return;
+      final credits =
+          result['credits'] is List ? (result['credits'] as List).length : 0;
+      final penalties = result['penalties'] is List
+          ? (result['penalties'] as List).length
+          : 0;
+      _amountController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.s.paymentConfirmed(credits, penalties))),
+      );
+      await _reload();
+    } on AlloException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.s.paymentError)),
+      );
+    } finally {
+      if (mounted) setState(() => _confirming = false);
+    }
   }
 
   @override
@@ -169,8 +253,10 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
               children: [
                 Expanded(
                   child: _SumCard(
-                    label: s.parcelAmount,
-                    value: _sumsLoading ? '…' : money.format(_amount),
+                    label: _isUnpaidTab ? s.remainingAmountLabel : s.paidAmountLabel,
+                    value: _sumsLoading
+                        ? '…'
+                        : money.format(_isUnpaidTab ? _netSum : _amount),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -200,7 +286,81 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
               onSubmitted: (_) => _reload(),
             ),
           ),
+          if (_isUnpaidTab && _rows.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: _selectAllLoaded,
+                    child: Text(s.selectAllUnpaid),
+                  ),
+                  if (_selected.isNotEmpty)
+                    TextButton(
+                      onPressed: _clearSelection,
+                      child: Text(s.clearSelection),
+                    ),
+                  const Spacer(),
+                  if (_selected.isNotEmpty)
+                    Text(
+                      s.selectedForPayment(_selected.length),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           Expanded(child: _body(s, money)),
+          if (_isUnpaidTab)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _amountController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: s.payoutAmountHint,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: !_confirming && _selected.isNotEmpty
+                            ? _confirmSelected
+                            : null,
+                        icon: _confirming
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.payments_outlined),
+                        label: Text(
+                          _selected.isEmpty
+                              ? s.transferToPaid
+                              : '${s.transferToPaid} (${_selected.length})',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -233,8 +393,16 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
             );
           }
           final order = _rows[index];
+          final selected = _selected.contains(order.id);
           return Card(
+            color: selected ? AppColors.brand.withValues(alpha: 0.08) : null,
             child: ListTile(
+              leading: _isUnpaidTab
+                  ? Checkbox(
+                      value: selected,
+                      onChanged: (_) => _toggle(order.id),
+                    )
+                  : null,
               title: Text(
                 'HT${order.id}  ${order.produitNom.isEmpty ? s.parcels : order.produitNom}',
                 maxLines: 1,
@@ -250,40 +418,69 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    money.format(order.produitPrixTotal),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        money.format(
+                          order.paid
+                              ? (order.montantPaye > 0
+                                  ? order.montantPaye
+                                  : orderNetCredit(order))
+                              : order.remainingPayout,
+                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        '${s.feesShort} ${money.format(order.fraisLivraison)}',
+                        style: const TextStyle(
+                          color: AppColors.error,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        order.paid ? s.paid : s.unpaid,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color:
+                              order.paid ? Colors.green.shade700 : Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '${s.feesShort} ${money.format(order.fraisLivraison)}',
-                    style: const TextStyle(
-                      color: AppColors.error,
-                      fontSize: 12,
-                    ),
-                  ),
-                  Text(
-                    order.paid ? s.paid : s.unpaid,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: order.paid ? Colors.green.shade700 : Colors.grey,
-                    ),
+                  IconButton(
+                    tooltip: s.orderDetails,
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CommandeDetailsScreen(commandeId: order.id),
+                        ),
+                      ).then((_) {
+                        if (mounted) _reload();
+                      });
+                    },
                   ),
                 ],
               ),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        CommandeDetailsScreen(commandeId: order.id),
-                  ),
-                );
-              },
+              onTap: _isUnpaidTab
+                  ? () => _toggle(order.id)
+                  : () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CommandeDetailsScreen(commandeId: order.id),
+                        ),
+                      );
+                    },
             ),
           );
         },

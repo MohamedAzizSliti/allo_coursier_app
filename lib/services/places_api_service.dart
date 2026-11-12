@@ -1,3 +1,4 @@
+import '../domain/delivery_schedule.dart';
 import '../domain/gouvernorat_canon.dart';
 import 'api_client.dart';
 import 'supabase_rest.dart';
@@ -11,6 +12,7 @@ class GouvernoratPlace {
     this.gouvernorat,
     this.tickets,
     this.villes,
+    this.weekdays = const [],
   });
 
   final String id;
@@ -21,10 +23,21 @@ class GouvernoratPlace {
   final int? tickets;
   final int? villes;
 
+  /// ISO weekdays 1=Mon…7=Sun from `delivery_weekdays` RPC.
+  final List<int> weekdays;
+
   String get label =>
       (gouvernorat != null && gouvernorat!.trim().isNotEmpty) ? gouvernorat! : name;
 
   factory GouvernoratPlace.fromJson(Map<String, dynamic> json) {
+    final rawDays = json['weekdays'];
+    final days = <int>[];
+    if (rawDays is List) {
+      for (final d in rawDays) {
+        final n = d is num ? d.toInt() : int.tryParse(d.toString());
+        if (n != null && n >= 1 && n <= 7) days.add(n);
+      }
+    }
     return GouvernoratPlace(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
@@ -33,6 +46,7 @@ class GouvernoratPlace {
       active: json['active'] != false,
       tickets: (json['tickets'] as num?)?.toInt(),
       villes: (json['villes'] as num?)?.toInt(),
+      weekdays: days,
     );
   }
 }
@@ -131,6 +145,27 @@ class PlacesApiService {
       // Usage counts are optional for the order form.
     }
 
+    Map<String, List<int>> schedule = {};
+    try {
+      final raw = await _supabase.rpc('delivery_weekdays');
+      for (final row in raw) {
+        if (row is! Map) continue;
+        final name = row['gouvernorat']?.toString().trim() ?? '';
+        if (name.isEmpty) continue;
+        final days = <int>[];
+        final rawDays = row['weekdays'];
+        if (rawDays is List) {
+          for (final d in rawDays) {
+            final n = d is num ? d.toInt() : int.tryParse(d.toString());
+            if (n != null && n >= 1 && n <= 7) days.add(n);
+          }
+        }
+        if (days.isNotEmpty) schedule = {...schedule, name: days};
+      }
+    } catch (_) {
+      // Schedule RPC missing until migration — use offline fallback.
+    }
+
     final rows = <GouvernoratPlace>[];
     for (final raw in categories.rows) {
       if (raw is! Map) continue;
@@ -138,17 +173,20 @@ class PlacesApiService {
       final name = localizedPlaceName(map['name']);
       final id = map['id']?.toString() ?? '';
       final counts = usage[id];
+      final canon = canonicalGouvernorat(name);
+      final weekdays = schedule[canon ?? ''] ?? schedule[name] ?? const <int>[];
       rows.add(
         GouvernoratPlace(
           id: id,
           name: name,
-          gouvernorat: canonicalGouvernorat(name),
+          gouvernorat: canon,
           tarif: (map['tarif'] as num?)?.toDouble() ??
               double.tryParse(map['tarif']?.toString() ?? '') ??
               0,
           active: map['active'] != false,
           tickets: counts?.tickets,
           villes: counts?.villes,
+          weekdays: weekdays,
         ),
       );
     }
@@ -157,6 +195,13 @@ class PlacesApiService {
       if (byLabel != 0) return byLabel;
       return a.id.compareTo(b.id);
     });
+
+    DeliveryScheduleCache.replaceAll({
+      for (final g in rows)
+        if ((g.gouvernorat ?? g.name).trim().isNotEmpty && g.weekdays.isNotEmpty)
+          (g.gouvernorat ?? g.name): g.weekdays.toSet(),
+    });
+
     return rows;
   }
 

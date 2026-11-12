@@ -21,4 +21,25 @@ void main() {
     expect(find.text('8.00 د.ت'), findsOneWidget);
     expect(find.text('111.00 د.ت'), findsOneWidget);
   });
+
+  testWidgets('expéditeur view hides delivery fee', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const Scaffold(
+          body: ParcelAmountsCard(
+            colisPrice: 103,
+            deliveryFee: 8,
+            showDeliveryFee: false,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('سعر الطرد'), findsOneWidget);
+    expect(find.text('103.00 د.ت'), findsOneWidget);
+    expect(find.text('رسوم التوصيل'), findsNothing);
+    expect(find.text('المجموع'), findsNothing);
+    expect(find.text('8.00 د.ت'), findsNothing);
+  });
 }

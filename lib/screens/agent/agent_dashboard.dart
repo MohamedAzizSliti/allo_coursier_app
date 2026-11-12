@@ -30,8 +30,10 @@ class AgentDashboard extends StatefulWidget {
 class _AgentDashboardState extends State<AgentDashboard> {
   int _selectedIndex = 0;
 
+  bool get _isAdmin => widget.role == 'admin';
+
   List<Widget> _screens() => [
-        DashboardScreen(isAdmin: widget.role == 'admin'),
+        DashboardScreen(isAdmin: _isAdmin),
         const DeliveryScreen(),
         const CommandessScreen(),
         NotificationsScreen(active: _selectedIndex == 3),
@@ -57,48 +59,6 @@ class _AgentDashboardState extends State<AgentDashboard> {
         elevation: 0,
         actions: [
           const LanguageToggle(compact: true),
-          PopupMenuButton<String>(
-            tooltip: s.more,
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            color: Colors.white,
-            onSelected: (value) {
-              if (value == 'reference') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ReferenceScreen()),
-                );
-              } else if (value == 'staff_order') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const AddOrderScreen(staffMode: true),
-                  ),
-                );
-              } else if (value == 'transactions') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const AdminTransactionsScreen(),
-                  ),
-                );
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'staff_order',
-                child: Text(s.staffNewOrder),
-              ),
-              PopupMenuItem(
-                value: 'reference',
-                child: Text(s.referenceData),
-              ),
-              if (widget.role == 'admin')
-                PopupMenuItem(
-                  value: 'transactions',
-                  child: Text(s.transactions),
-                ),
-            ],
-          ),
           Container(
             margin: const EdgeInsetsDirectional.only(end: 16),
             decoration: BoxDecoration(
@@ -118,9 +78,7 @@ class _AgentDashboardState extends State<AgentDashboard> {
           ),
         ],
       ),
-      drawer: widget.role == 'admin'
-          ? _buildAdminDrawer(context)
-          : null,
+      drawer: _buildDrawer(context),
       body: LazyIndexedStack(
         index: _selectedIndex,
         children: _screens(),
@@ -134,14 +92,15 @@ class _AgentDashboardState extends State<AgentDashboard> {
     );
   }
 
-  Widget _buildAdminDrawer(BuildContext context) {
+  Widget _buildDrawer(BuildContext context) {
+    final s = context.s;
     return Drawer(
       child: SafeArea(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             Container(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 gradient: AppColors.gradientPrimary,
               ),
               padding: const EdgeInsets.all(20),
@@ -154,15 +113,17 @@ class _AgentDashboardState extends State<AgentDashboard> {
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
-                      Icons.admin_panel_settings_rounded,
+                    child: Icon(
+                      _isAdmin
+                          ? Icons.admin_panel_settings_rounded
+                          : Icons.support_agent_rounded,
                       color: Colors.white,
                       size: 40,
                     ),
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    context.s.adminPanel,
+                    _isAdmin ? s.adminPanel : s.roleAgent,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -171,7 +132,7 @@ class _AgentDashboardState extends State<AgentDashboard> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    context.s.managePlatform,
+                    s.managePlatform,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.8),
                       fontSize: 12,
@@ -183,63 +144,104 @@ class _AgentDashboardState extends State<AgentDashboard> {
             const SizedBox(height: 8),
             _DrawerItem(
               icon: Icons.dashboard_rounded,
-              title: context.s.dashboard,
+              title: s.dashboard,
               onTap: () {
                 Navigator.pop(context);
                 _onItemTapped(0);
               },
             ),
             _DrawerItem(
-              icon: Icons.supervised_user_circle_rounded,
-              title: context.s.manageAgents,
+              icon: Icons.inventory_2_rounded,
+              title: s.manageParcels,
+              onTap: () {
+                Navigator.pop(context);
+                _onItemTapped(2);
+              },
+            ),
+            if (_isAdmin)
+              _DrawerItem(
+                icon: Icons.supervised_user_circle_rounded,
+                title: s.manageAgents,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UsersListScreen(role: 'agent'),
+                    ),
+                  );
+                },
+              ),
+            _DrawerItem(
+              icon: Icons.storefront_rounded,
+              title: s.roleSenders,
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const UsersListScreen(role: 'agent'),
+                    builder: (_) =>
+                        const UsersListScreen(role: 'business_client'),
                   ),
                 );
               },
             ),
             _DrawerItem(
               icon: Icons.person_rounded,
-              title: context.s.manageDrivers,
+              title: s.manageDrivers,
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const UsersListScreen(role: 'delivery_person'),
+                    builder: (_) =>
+                        const UsersListScreen(role: 'delivery_person'),
                   ),
                 );
               },
             ),
-            _DrawerItem(
-              icon: Icons.directions_car_rounded,
-              title: context.s.vehicleFleet,
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const VehiclesListScreen()),
-                );
-              },
-            ),
-            _DrawerItem(
-              icon: Icons.payment_rounded,
-              title: context.s.paymentManagement,
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PaymentsScreen()),
-                );
-              },
-            ),
+            if (_isAdmin) ...[
+              _DrawerItem(
+                icon: Icons.directions_car_rounded,
+                title: s.vehicleFleet,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const VehiclesListScreen(),
+                    ),
+                  );
+                },
+              ),
+              _DrawerItem(
+                icon: Icons.payment_rounded,
+                title: s.paymentManagement,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PaymentsScreen()),
+                  );
+                },
+              ),
+              _DrawerItem(
+                icon: Icons.receipt_long_rounded,
+                title: s.transactions,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AdminTransactionsScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
             _DrawerItem(
               icon: Icons.map_rounded,
-              title: context.s.referenceData,
+              title: s.referenceData,
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -249,21 +251,8 @@ class _AgentDashboardState extends State<AgentDashboard> {
               },
             ),
             _DrawerItem(
-              icon: Icons.receipt_long_rounded,
-              title: context.s.transactions,
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const AdminTransactionsScreen(),
-                  ),
-                );
-              },
-            ),
-            _DrawerItem(
               icon: Icons.add_box_rounded,
-              title: context.s.staffNewOrder,
+              title: s.staffNewOrder,
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -277,7 +266,7 @@ class _AgentDashboardState extends State<AgentDashboard> {
             const Divider(),
             _DrawerItem(
               icon: Icons.logout_rounded,
-              title: context.s.logout,
+              title: s.logout,
               textColor: AppColors.error,
               onTap: () async {
                 Navigator.pop(context);

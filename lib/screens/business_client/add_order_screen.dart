@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../domain/delivery_fee.dart';
+import '../../domain/delivery_schedule.dart';
 import '../../l10n/l10n.dart';
 import '../../models/commande_model.dart';
 import '../../models/user_model.dart';
@@ -63,6 +65,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   bool _canOpenBeforePay = false;
   double _totalPrice = 0;
   PickedVille? _pickedPlace;
+  int _villePickerEpoch = 0;
+  DateTime? _deliveryDate;
   bool _isSubmitting = false;
   final List<_ProductLine> _lines = [_ProductLine()];
 
@@ -181,6 +185,15 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       }
 
       final products = _lines.map((l) => l.toMap()).toList();
+      if (_deliveryDate == null ||
+          !isAllowedDeliveryDay(place.gouvernorat, _deliveryDate!)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.s.selectDeliveryDate)),
+        );
+        return;
+      }
+
       final body = buildCreateCommandeBody(
         expediteurId: userId,
         clientNom: _clientNameController.text,
@@ -195,6 +208,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         products: products,
         categoryId: place.categoryId,
         villeId: place.villeId,
+        deliveryDate: DateFormat('yyyy-MM-dd').format(_deliveryDate!),
       );
       if ((body['produit_list'] as List).isEmpty ||
           (body['produit_nom'] as String).isEmpty) {
@@ -255,10 +269,59 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       _isFragile = false;
       _canOpenBeforePay = false;
       _pickedPlace = null;
+      _deliveryDate = null;
+      _villePickerEpoch += 1;
       _lines
         ..clear()
         ..add(_ProductLine());
     });
+  }
+
+  Set<int> _placeWeekdays(PickedVille place) =>
+      weekdaysForPlace(place.weekdays, place.gouvernorat);
+
+  String _placeDaysLabel(PickedVille place, AppStrings s) {
+    final days = _placeWeekdays(place).toList()..sort();
+    if (days.isEmpty) return '';
+    return days
+        .map((d) => s.ar ? weekdayLabelAr(d) : weekdayLabelFr(d))
+        .join(s.ar ? '، ' : ', ');
+  }
+
+  Future<void> _pickDeliveryDate() async {
+    final place = _pickedPlace;
+    if (place == null) return;
+    final days = _placeWeekdays(place);
+    if (days.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.s.noDeliveryPlanDays)),
+      );
+      return;
+    }
+    final now = DateTime.now();
+    final first = DateTime(now.year, now.month, now.day);
+    DateTime? upcoming;
+    for (var i = 0; i < 60; i++) {
+      final candidate = first.add(Duration(days: i));
+      if (isAllowedDeliveryDayFor(days, candidate)) {
+        upcoming = candidate;
+        break;
+      }
+    }
+    final initial = _deliveryDate != null &&
+            isAllowedDeliveryDayFor(days, _deliveryDate!)
+        ? _deliveryDate!
+        : (upcoming ?? first);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(first) ? first : initial,
+      firstDate: first,
+      lastDate: first.add(const Duration(days: 90)),
+      selectableDayPredicate: (day) => isAllowedDeliveryDayFor(days, day),
+    );
+    if (picked != null && mounted) {
+      setState(() => _deliveryDate = picked);
+    }
   }
 
   String _localizeCreateError(String message) {
@@ -403,9 +466,37 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                     isPhone: true,
                   ),
                   VillePicker(
+                    key: ValueKey(_villePickerEpoch),
                     value: _pickedPlace,
-                    onChanged: (place) => setState(() => _pickedPlace = place),
+                    onChanged: (place) => setState(() {
+                      _pickedPlace = place;
+                      _deliveryDate = null;
+                    }),
                   ),
+                  if (_pickedPlace != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        _placeWeekdays(_pickedPlace!).isEmpty
+                            ? s.noDeliveryPlanDays
+                            : s.deliveryPlanDays(_placeDaysLabel(_pickedPlace!, s)),
+                        style: const TextStyle(color: AppColors.textMedium, fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.event_outlined),
+                      title: Text(
+                        _deliveryDate == null
+                            ? s.selectDeliveryDate
+                            : '${s.deliveryDate} : ${DateFormat('yyyy-MM-dd').format(_deliveryDate!)}',
+                      ),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: _pickDeliveryDate,
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   _field(_clientAddressController, s.address, icon: Icons.home_outlined),
                 ],

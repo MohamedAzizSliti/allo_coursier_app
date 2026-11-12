@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../domain/colis_payout.dart';
 import '../../domain/handover.dart';
 import '../../l10n/l10n.dart';
 import '../../models/commande_model.dart';
@@ -23,11 +24,13 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   final CommandeApiService _commandeService = CommandeApiService();
   final VehicleApiService _vehicleService = VehicleApiService();
   final PaymentApiService _paymentService = PaymentApiService();
+  final TextEditingController _amountController = TextEditingController();
 
   String? selectedVehicleId;
   num totalCollected = 0;
   num totalDeliveryFees = 0;
   num cancellationFees = 0;
+  num remainingNet = 0;
   List<CommandeModel> filteredOrders = [];
   DateTime selectedDate = DateTime.now();
 
@@ -42,6 +45,12 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   void initState() {
     super.initState();
     _fetchVehicles();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchVehicles() async {
@@ -96,6 +105,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         totalCollected = totals.totalCollected;
         totalDeliveryFees = totals.totalDeliveryFees;
         cancellationFees = totals.cancellationFees;
+        remainingNet = montantResteTotal(matching);
         _error = null;
         _loadingOrders = false;
       });
@@ -125,16 +135,30 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   Future<void> _confirmPayment() async {
     if (filteredOrders.isEmpty) return;
 
-    // Collect IDs of unpaid delivered orders for batch payment
     final orderIds = paymentOrderIds(filteredOrders);
-
     if (orderIds.isEmpty) return;
+
+    final rawAmount = _amountController.text.trim().replaceAll(',', '.');
+    double? amount;
+    if (rawAmount.isNotEmpty) {
+      amount = double.tryParse(rawAmount);
+      if (amount == null || amount <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.s.paymentError)),
+        );
+        return;
+      }
+    }
 
     setState(() => _confirming = true);
     try {
-      final result = await _paymentService.confirmPayments(orderIds);
+      final result = await _paymentService.confirmPayments(
+        orderIds,
+        amount: amount,
+      );
       if (!mounted) return;
 
+      _amountController.clear();
       _fetchOrders();
 
       final credits = result['credits'] is List ? (result['credits'] as List).length : 0;
@@ -147,6 +171,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         totalCollected = 0;
         totalDeliveryFees = 0;
         cancellationFees = 0;
+        remainingNet = 0;
       });
     } catch (e) {
       debugPrint('Error confirming payment: $e');
@@ -222,6 +247,19 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               s.cancellationFeesLine(cancellationFees.toStringAsFixed(2)),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
             ),
+            Text(
+              '${s.remainingAmountLabel} : ${remainingNet.toStringAsFixed(2)} DT',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _amountController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: s.payoutAmountHint,
+                border: const OutlineInputBorder(),
+              ),
+            ),
             const SizedBox(height: 10),
             Expanded(
               child: _loadingOrders
@@ -232,10 +270,15 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                       itemCount: filteredOrders.length,
                       itemBuilder: (context, index) {
                         final order = filteredOrders[index];
+                        final reste = order.remainingPayout;
                         return Card(
                           child: ListTile(
                             title: Text(s.orderTitle(order.displayId)),
-                            subtitle: Text(s.amountLine('${order.produitPrixTotal}')),
+                            subtitle: Text(
+                              order.paid
+                                  ? s.amountLine(orderNetCredit(order).toStringAsFixed(2))
+                                  : '${s.netRemainingLine} : ${reste.toStringAsFixed(2)} DT',
+                            ),
                             trailing: Text(order.paid ? s.paid : s.unpaid),
                           ),
                         );

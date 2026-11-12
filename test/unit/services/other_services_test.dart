@@ -251,9 +251,38 @@ void main() {
     });
     await PaymentApiService(api).confirmPayments(['1', '2']);
     expect(last!['orderIds'], ['1', '2']);
+    expect(last!.containsKey('amount'), isFalse);
+    await PaymentApiService(api).confirmPayments(['1'], amount: 12.5);
+    expect(last!['orderIds'], ['1']);
+    expect(last!['amount'], 12.5);
     await PaymentApiService(api).requestWithdrawal(expediteurId: '203');
     expect(last!['expediteurId'], '203');
     expect(last!.containsKey('amount'), isFalse);
+  });
+
+  test('PaymentApiService getPayoutSums hits /payments/payout-sums', () async {
+    Map<String, dynamic>? query;
+    final api = createMockApi((options) {
+      expect(options.method, 'GET');
+      expect(options.path, '/payments/payout-sums');
+      query = Map<String, dynamic>.from(options.queryParameters);
+      return Response(
+        requestOptions: options,
+        statusCode: 200,
+        data: ok({
+          'montant_paye': 756,
+          'montant_reste': 12.5,
+          'unpaidCount': 2,
+          'paidCount': 1,
+        }),
+      );
+    });
+    final sums = await PaymentApiService(api).getPayoutSums(expediteurId: '203');
+    expect(query!['expediteurId'], '203');
+    expect(sums.montantPaye, 756);
+    expect(sums.montantReste, 12.5);
+    expect(sums.unpaidCount, 2);
+    expect(sums.paidCount, 1);
   });
 
   test('Notification and tarif and transaction list paths', () async {

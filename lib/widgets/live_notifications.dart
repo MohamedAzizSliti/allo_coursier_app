@@ -50,9 +50,7 @@ class _LiveNotificationHostState extends State<LiveNotificationHost>
 
   void _sync() {
     final session = SessionController.instance;
-    final live = session.isSignedIn &&
-        !session.mustChangePassword &&
-        !session.profileIncomplete;
+    final live = session.isSignedIn && !session.mustChangePassword;
     if (live) {
       NotificationInbox.instance.start();
     } else {

@@ -1,3 +1,4 @@
+import '../domain/colis_payout.dart';
 import 'parcel_status.dart';
 
 /// Immutable commande model matching the API's FLAT field schema.
@@ -31,6 +32,8 @@ class CommandeModel {
   // Status & payment
   final String status;
   final bool paid;
+  /// Net already paid out to the expéditeur for this colis.
+  final double montantPaye;
   final String livraison;
   final double fraisLivraison;
   final String? reason;
@@ -57,6 +60,7 @@ class CommandeModel {
     this.vehicleId,
     this.status = 'En cours',
     this.paid = false,
+    this.montantPaye = 0,
     this.livraison = '',
     this.fraisLivraison = 0,
     this.reason,
@@ -69,6 +73,9 @@ class CommandeModel {
 
   /// Colis amount plus the delivery tarif.
   double get totalDue => produitPrixTotal + fraisLivraison;
+
+  /// Net still owed on a delivered unpaid/partial colis.
+  double get remainingPayout => orderRemainingPayout(this);
 
   /// Parsed date for display.
   DateTime? get dateTime => date != null ? DateTime.tryParse(date!) : null;
@@ -124,6 +131,7 @@ class CommandeModel {
       vehicleId: json['vehicle_id']?.toString(),
       status: _str(json['status']).isEmpty ? 'En cours' : _str(json['status']),
       paid: _flag(json['paid']),
+      montantPaye: _num(json['montant_paye']),
       livraison: _str(json['livraison']),
       fraisLivraison: _num(json['frais_livraison']),
       reason: _str(json['reason']).isEmpty ? null : _str(json['reason']),
@@ -194,6 +202,7 @@ Map<String, dynamic> buildCreateCommandeBody({
   required List<Map<String, dynamic>> products,
   String? categoryId,
   String? villeId,
+  String? deliveryDate,
 }) {
   final list = sanitizeProduitList(products);
   final name = produitNom.trim().isNotEmpty
@@ -212,6 +221,7 @@ Map<String, dynamic> buildCreateCommandeBody({
     produitOuvrirAvantPaiement: produitOuvrirAvantPaiement,
     produitList: list,
     expediteurId: expediteurId,
+    deliveryDate: deliveryDate,
   ).toCreateJson();
 
   final cat = categoryId?.trim() ?? '';
@@ -225,13 +235,7 @@ Map<String, dynamic> buildCreateCommandeBody({
   return body;
 }
 
-/// Held sender balance: delivered parcels that are not yet paid.
+/// Remaining net owed on delivered unpaid/partial parcels.
 double unpaidDeliveredTotal(Iterable<CommandeModel> rows) {
-  var total = 0.0;
-  for (final row in rows) {
-    if (parseParcelStatus(row.status) == ParcelStatus.livrer && !row.paid) {
-      total += row.produitPrixTotal;
-    }
-  }
-  return total;
+  return montantResteTotal(rows);
 }

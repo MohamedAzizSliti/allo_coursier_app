@@ -50,7 +50,7 @@ void main() {
     );
   });
 
-  test('signed-in sender with missing fields completes the profile', () {
+  test('signed-in sender with missing fields opens the app', () {
     expect(
       resolveAppEntry(
         hasChosenLanguage: true,
@@ -58,7 +58,7 @@ void main() {
         isSignedIn: true,
         profileIncomplete: true,
       ),
-      AppEntry.completeProfile,
+      AppEntry.shell,
     );
   });
 

@@ -9,12 +9,14 @@ void main() {
       gouvernorat: 'Sfax',
       ville: 'Sakiet Ezzit',
       tarif: 8,
+      weekdays: [2, 5],
     );
     expect(place.categoryId, 'g-sfax');
     expect(place.villeId, 'v-1');
     expect(place.gouvernorat, 'Sfax');
     expect(place.ville, 'Sakiet Ezzit');
     expect(place.tarif, 8);
+    expect(place.weekdays, [2, 5]);
   });
 }
 

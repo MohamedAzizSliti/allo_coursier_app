@@ -1,27 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../../domain/delivery_schedule.dart';
 import '../../../l10n/l10n.dart';
 import '../../../theme/app_theme.dart';
 
 class WeeklyPlanWidget extends StatefulWidget {
+  const WeeklyPlanWidget({super.key});
+
   @override
-  _WeeklyPlanWidgetState createState() => _WeeklyPlanWidgetState();
+  State<WeeklyPlanWidget> createState() => _WeeklyPlanWidgetState();
 }
 
 class _WeeklyPlanWidgetState extends State<WeeklyPlanWidget> {
   bool isExpanded = false;
-
-  final List<Map<String, String>> weeklyPlan = [
-    {
-      'day': 'الاثنين',
-      'locations': 'القصرين، سيدي بوزيد، تونس، صفاقس، قيروان، قفصة',
-    },
-    {'day': 'الثلاثاء', 'locations': 'تونس، الوطن القبلي'},
-    {'day': 'الأربعاء', 'locations': 'قفصة، توزر، قبلي، تونس، باجة، سليانة'},
-    {'day': 'الخميس', 'locations': 'تونس، سوسة، منستير'},
-    {'day': 'الجمعة', 'locations': 'تونس، مهدية، قيروان، قابس، تطاوين، مدنين'},
-    {'day': 'السبت', 'locations': 'تونس، بنزرت'},
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +53,7 @@ class _WeeklyPlanWidgetState extends State<WeeklyPlanWidget> {
               duration: const Duration(milliseconds: 300),
               firstChild: const SizedBox(width: double.infinity),
               secondChild: Column(
-                children: weeklyPlan
+                children: kWeeklyDeliveryPlan
                     .map(
                       (dayPlan) => Container(
                         width: double.infinity,
@@ -88,14 +79,14 @@ class _WeeklyPlanWidgetState extends State<WeeklyPlanWidget> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    dayPlan['day']!,
+                                    weekdayLabelAr(dayPlan.weekday),
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                       color: AppColors.espresso,
                                     ),
                                   ),
                                   Text(
-                                    dayPlan['locations']!,
+                                    gouvernoratsLabelAr(dayPlan.gouvernorats),
                                     style: const TextStyle(
                                       color: AppColors.textMedium,
                                       fontSize: 13,

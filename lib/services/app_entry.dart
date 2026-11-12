@@ -15,7 +15,8 @@ AppEntry resolveAppEntry({
       !hasChosenLanguage && !hasSeenOnboarding && !isSignedIn;
   if (firstLaunch) return AppEntry.language;
   if (!hasSeenOnboarding && !isSignedIn) return AppEntry.onboarding;
+  // First login matches the web: change the temporary password, then optional
+  // phone and email. The longer profile form stays in settings.
   if (isSignedIn && mustChangePassword) return AppEntry.changePassword;
-  if (isSignedIn && profileIncomplete) return AppEntry.completeProfile;
   return AppEntry.shell;
 }

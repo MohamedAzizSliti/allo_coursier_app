@@ -292,12 +292,16 @@ class CommandeApiService {
 
   Future<CommandeModel> confirmColis(
     String id, {
-    required String vehicleId,
-    String? livreurId,
+    String? vehicleId,
     String? deliveryDate,
   }) async {
-    final body = <String, dynamic>{'vehicleId': vehicleId};
-    if (deliveryDate != null) body['deliveryDate'] = deliveryDate;
+    final body = <String, dynamic>{};
+    if (vehicleId != null && vehicleId.trim().isNotEmpty) {
+      body['vehicleId'] = vehicleId.trim();
+    }
+    if (deliveryDate != null && deliveryDate.trim().isNotEmpty) {
+      body['deliveryDate'] = deliveryDate.trim();
+    }
     final data = await _api.post('/commandes/$id/confirm-colis', body);
     return CommandeModel.fromJson(data);
   }

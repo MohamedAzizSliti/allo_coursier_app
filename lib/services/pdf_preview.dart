@@ -9,7 +9,9 @@ import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../config/office_contact.dart';
+import '../domain/monthly_invoice.dart';
 import '../models/commande_model.dart';
+import '../models/parcel_status.dart';
 import 'auth_service.dart';
 import 'pdf_assets.dart';
 
@@ -24,6 +26,7 @@ const _tableHeader = PdfColor.fromInt(0xFFEDE0C8);
 Future<void> showPdfPreview(CommandeModel order) async {
   try {
     final logoFuture = loadPdfLogoBytes();
+    final themeFuture = loadPdfTheme();
     final qrFuture = _qrPngBytes(order.id);
     String? expediteurPhone;
     String expediteurName = order.expediteurName;
@@ -39,18 +42,19 @@ Future<void> showPdfPreview(CommandeModel order) async {
     }
 
     final logoBytes = await logoFuture;
+    final theme = await themeFuture;
     final qrBytes = await qrFuture;
     final dateFmt = DateFormat('dd/MM/yyyy HH:mm');
     final dayFmt = DateFormat('dd/MM/yyyy');
 
     String fmtDateTime(String? raw) {
-      if (raw == null || raw.trim().isEmpty) return '—';
+      if (raw == null || raw.trim().isEmpty) return '-';
       final parsed = DateTime.tryParse(raw);
       return parsed == null ? raw : dateFmt.format(parsed.toLocal());
     }
 
     String fmtDate(String? raw) {
-      if (raw == null || raw.trim().isEmpty) return '—';
+      if (raw == null || raw.trim().isEmpty) return '-';
       final parsed = DateTime.tryParse(raw);
       return parsed == null ? raw : dayFmt.format(parsed.toLocal());
     }
@@ -58,12 +62,14 @@ Future<void> showPdfPreview(CommandeModel order) async {
     final pdf = pw.Document(
       title: 'Commande ${order.id}',
       author: OfficeContact.name,
+      theme: theme,
     );
 
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
+        theme: theme,
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
@@ -125,16 +131,20 @@ Future<void> showPdfPreview(CommandeModel order) async {
                 _productTable(order.produitList),
               ],
               _field(
+                'Prix colis',
+                '${order.produitPrixTotal.toStringAsFixed(2)} TND',
+              ),
+              _field(
                 'Frais de livraison',
                 '${order.fraisLivraison.toStringAsFixed(2)} TND',
               ),
               _field(
-                'Prix total',
-                '${order.produitPrixTotal.toStringAsFixed(2)} TND',
+                'Total',
+                '${(order.produitPrixTotal + order.fraisLivraison).toStringAsFixed(2)} TND',
               ),
               _section('Expéditeur'),
               _field('Nom', expediteurName),
-              _field('Téléphone', expediteurPhone ?? '—'),
+              _field('Téléphone', expediteurPhone ?? '-'),
               pw.Spacer(),
               pw.Text(
                 OfficeContact.address,
@@ -268,4 +278,108 @@ Future<Uint8List?> _qrPngBytes(String data) async {
   final image = await decodeImageFromList(qrImageData.buffer.asUint8List());
   final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
   return bytes?.buffer.asUint8List();
+}
+
+/// Monthly facture for an expéditeur: table of parcels + livré + totals.
+Future<void> showMonthlyInvoicePdf({
+  required MonthlyInvoiceTotals invoice,
+  required int year,
+  required int month,
+  String? expediteurName,
+}) async {
+  try {
+    final logoBytes = await loadPdfLogoBytes();
+    final theme = await loadPdfTheme();
+    final monthLabel = DateFormat('MMMM yyyy', 'fr').format(DateTime(year, month));
+    final dayFmt = DateFormat('dd/MM/yyyy');
+    final pdf = pw.Document(
+      title: 'Facture $monthLabel',
+      author: OfficeContact.name,
+      theme: theme,
+    );
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        theme: theme,
+        build: (context) => [
+          pw.Row(
+            children: [
+              if (logoBytes != null) ...[
+                pw.Image(pw.MemoryImage(logoBytes), width: 56, height: 56),
+                pw.SizedBox(width: 12),
+              ],
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      OfficeContact.name,
+                      style: pw.TextStyle(
+                        fontSize: 16,
+                        fontWeight: pw.FontWeight.bold,
+                        color: _brown,
+                      ),
+                    ),
+                    pw.Text(
+                      'Facture - $monthLabel',
+                      style: const pw.TextStyle(color: _muted, fontSize: 11),
+                    ),
+                    if (expediteurName != null && expediteurName.trim().isNotEmpty)
+                      pw.Text(
+                        expediteurName,
+                        style: const pw.TextStyle(color: _ink, fontSize: 11),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 16),
+          pw.TableHelper.fromTextArray(
+            headers: const [
+              'N°',
+              'Client',
+              'Date',
+              'Livré',
+              'Payé',
+              'Prix colis',
+            ],
+            data: [
+              for (final o in invoice.rows)
+                [
+                  o.displayId,
+                  o.clientNom,
+                  () {
+                    final raw = o.deliveryDate ?? o.date;
+                    final parsed = raw == null ? null : DateTime.tryParse(raw);
+                    return parsed == null ? '-' : dayFmt.format(parsed.toLocal());
+                  }(),
+                  parseParcelStatus(o.status) == ParcelStatus.livrer ? 'Oui' : 'Non',
+                  o.paid ? 'Oui' : 'Non',
+                  o.produitPrixTotal.toStringAsFixed(2),
+                ],
+            ],
+            headerStyle: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              fontSize: 9,
+              color: _ink,
+            ),
+            cellStyle: const pw.TextStyle(fontSize: 8, color: _ink),
+            headerDecoration: const pw.BoxDecoration(color: _tableHeader),
+            border: pw.TableBorder.all(color: _tableBorder, width: 0.5),
+            cellAlignment: pw.Alignment.centerLeft,
+          ),
+          pw.SizedBox(height: 14),
+          _field('Colis livrés', '${invoice.deliveredCount} / ${invoice.rows.length}'),
+          _field('Total prix colis', '${invoice.parcelTotal.toStringAsFixed(2)} TND'),
+        ],
+      ),
+    );
+
+    await Printing.layoutPdf(onLayout: (_) async => pdf.save());
+  } catch (e) {
+    debugPrint('Error generating monthly invoice PDF: $e');
+  }
 }

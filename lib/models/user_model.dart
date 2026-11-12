@@ -16,8 +16,13 @@ class UserModel {
   final String? cin;
   final String? createdAt;
   final double montantDisponible;
+  /// Net already paid out to this expéditeur (from `GET /auth/me`).
+  final double montantPaye;
+  /// Net remaining on delivered unpaid/partial colis (from `GET /auth/me`).
+  final double montantReste;
   final String? vehicleId;
   final bool mustChangePassword;
+  final bool active;
   final Map<String, dynamic> extra;
 
   const UserModel({
@@ -34,10 +39,15 @@ class UserModel {
     this.cin,
     this.createdAt,
     this.montantDisponible = 0,
+    this.montantPaye = 0,
+    this.montantReste = 0,
     this.vehicleId,
     this.mustChangePassword = false,
+    this.active = true,
     this.extra = const {},
   });
+
+  bool get banned => !active;
 
   Set<String> get identityIds => {
         if (id.trim().isNotEmpty) id.trim(),
@@ -98,11 +108,17 @@ class UserModel {
       'createdAt',
       'montant_disponible',
       'montantDisponible',
+      'montant_paye',
+      'montantPaye',
+      'montant_reste',
+      'montantReste',
       'fcm_token',
       'vehicleId',
       'vehicle_id',
       'must_change_password',
       'mustChangePassword',
+      'active',
+      'banned',
     };
     final extra = <String, dynamic>{};
     json.forEach((key, value) {
@@ -125,9 +141,12 @@ class UserModel {
       montantDisponible: _num(json['montant_disponible']) ??
           _num(json['montantDisponible']) ??
           0.0,
+      montantPaye: _num(json['montant_paye']) ?? _num(json['montantPaye']) ?? 0.0,
+      montantReste: _num(json['montant_reste']) ?? _num(json['montantReste']) ?? 0.0,
       vehicleId: _read(json, ['vehicleId', 'vehicle_id']),
       mustChangePassword: json['must_change_password'] == true ||
           json['mustChangePassword'] == true,
+      active: json['active'] == false || json['banned'] == true ? false : true,
       extra: extra,
     );
   }
@@ -139,7 +158,10 @@ class UserModel {
     String? gouvernorat,
     String? company,
     String? cin,
+    double? montantPaye,
+    double? montantReste,
     bool? mustChangePassword,
+    bool? active,
   }) {
     return UserModel(
       id: id,
@@ -155,8 +177,11 @@ class UserModel {
       cin: cin ?? this.cin,
       createdAt: createdAt,
       montantDisponible: montantDisponible,
+      montantPaye: montantPaye ?? this.montantPaye,
+      montantReste: montantReste ?? this.montantReste,
       vehicleId: vehicleId,
       mustChangePassword: mustChangePassword ?? this.mustChangePassword,
+      active: active ?? this.active,
       extra: extra,
     );
   }
@@ -184,8 +209,11 @@ class UserModel {
       createdAt: pickN(createdAt, other.createdAt),
       montantDisponible:
           montantDisponible != 0 ? montantDisponible : other.montantDisponible,
+      montantPaye: montantPaye != 0 ? montantPaye : other.montantPaye,
+      montantReste: montantReste != 0 ? montantReste : other.montantReste,
       vehicleId: pickN(vehicleId, other.vehicleId),
       mustChangePassword: mustChangePassword || other.mustChangePassword,
+      active: active && other.active,
       extra: {...other.extra, ...extra},
     );
   }

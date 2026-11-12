@@ -12,7 +12,6 @@ import '../../services/commande_api_service.dart';
 import '../../services/parcel_transition_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/scan_manual_entry.dart';
-import '../agent/ColisDetailsScreen.dart';
 import '../agent/commande_details_screen.dart';
 import 'scan_confirm_dialog.dart';
 import 'scan_outcome_sheet.dart';
@@ -170,11 +169,9 @@ class _ParcelScannerScreenState extends State<ParcelScannerScreen> {
         ),
       );
       if (go == true && mounted) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ColisDetailsScreen(colisId: commande.id),
-          ),
+        await _run(
+          () => _commandeService.confirmColis(commande.id),
+          context.s.parcelConfirmed,
         );
       }
       return;

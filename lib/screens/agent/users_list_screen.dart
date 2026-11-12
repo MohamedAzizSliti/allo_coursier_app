@@ -21,6 +21,7 @@ class UsersListScreen extends StatefulWidget {
 
 class _UsersListScreenState extends State<UsersListScreen> {
   final UserApiService _userService = UserApiService();
+  final _searchController = TextEditingController();
 
   List<UserModel> _users = [];
   bool _isLoading = true;
@@ -33,12 +34,18 @@ class _UsersListScreenState extends State<UsersListScreen> {
     _fetchData();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
       final results = await Future.wait([
         _userService.listUsers(role: widget.role),
-          AlloApi.instance.getStoredRole(),
+        AlloApi.instance.getStoredRole(),
       ]);
       if (!mounted) return;
 
@@ -60,8 +67,25 @@ class _UsersListScreenState extends State<UsersListScreen> {
     }
   }
 
+  List<UserModel> get _filtered {
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isEmpty) return _users;
+    return _users.where((u) {
+      final hay = [
+        u.name,
+        u.email,
+        u.phone ?? '',
+        u.company ?? '',
+        u.city ?? '',
+        u.address ?? '',
+      ].join(' ').toLowerCase();
+      return hay.contains(q);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final rows = _filtered;
     return Scaffold(
       appBar: AppBar(
         title: Text(context.s.listOf(context.s.roleTitle(widget.role))),
@@ -71,15 +95,40 @@ class _UsersListScreenState extends State<UsersListScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? ErrorBanner(message: _error!, onRetry: _fetchData)
-          : RefreshIndicator(
-              onRefresh: _fetchData,
-              child: _users.isEmpty
-                  ? EmptyState(message: context.s.noneFound(context.s.roleTitle(widget.role)))
-                  : ListView.builder(
-                      itemCount: _users.length,
-                      itemBuilder: (context, index) => _buildUserCard(_users[index]),
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          labelText: context.s.searchByNameOrPhone,
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
                     ),
-            ),
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: _fetchData,
+                        child: rows.isEmpty
+                            ? EmptyState(
+                                message: context.s.noneFound(
+                                  context.s.roleTitle(widget.role),
+                                ),
+                              )
+                            : ListView.builder(
+                                itemCount: rows.length,
+                                itemBuilder: (context, index) =>
+                                    _buildUserCard(rows[index]),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
     );
   }
 
@@ -104,13 +153,14 @@ class _UsersListScreenState extends State<UsersListScreen> {
 
   Widget _buildUserCard(UserModel user) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        final changed = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
             builder: (_) => UserDetailsScreen(userId: user.id),
           ),
         );
+        if (changed == true) _fetchData();
       },
       child: Card(
         child: ListTile(
@@ -120,7 +170,14 @@ class _UsersListScreenState extends State<UsersListScreen> {
           ),
           title: Text(user.name.isEmpty ? context.s.unknownName : user.name),
           subtitle: Text(user.email.isEmpty ? context.s.unknownEmail : user.email),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          trailing: user.banned
+              ? Chip(
+                  label: Text(context.s.banned),
+                  visualDensity: VisualDensity.compact,
+                  backgroundColor: Colors.red.shade50,
+                  labelStyle: TextStyle(color: Colors.red.shade800, fontSize: 12),
+                )
+              : const Icon(Icons.arrow_forward_ios, size: 16),
         ),
       ),
     );

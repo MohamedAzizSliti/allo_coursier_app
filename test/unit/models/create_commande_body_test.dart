@@ -42,4 +42,22 @@ void main() {
     );
     expect(body.containsKey('place'), isFalse);
   });
+
+  test('buildCreateCommandeBody sends preferred delivery_date', () {
+    final body = buildCreateCommandeBody(
+      expediteurId: '3',
+      clientNom: 'Sami',
+      clientTelephone: '20111222',
+      clientGouvernorat: 'Gafsa',
+      clientAdresse: 'Rue 1',
+      clientVille: 'Gafsa',
+      produitNom: 'huile',
+      produitPrixTotal: 40,
+      produitFragile: false,
+      produitOuvrirAvantPaiement: false,
+      products: const [],
+      deliveryDate: '2026-11-11',
+    );
+    expect(body['delivery_date'], '2026-11-11');
+  });
 }

@@ -40,9 +40,14 @@ class _PagedOrdersViewState extends State<PagedOrdersView> {
   String? _error;
   late String _shipment = widget.initialShipment;
 
+  /// Agenda day for delivery_date. Null = all days.
+  DateTime? _day;
+
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _day = DateTime(now.year, now.month, now.day);
     _scroll.addListener(_onScroll);
     _fetch(reset: true);
   }
@@ -54,12 +59,51 @@ class _PagedOrdersViewState extends State<PagedOrdersView> {
     super.dispose();
   }
 
+  DateTime get _today {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  bool get _isToday =>
+      _day != null &&
+      _day!.year == _today.year &&
+      _day!.month == _today.month &&
+      _day!.day == _today.day;
+
   void _onScroll() {
     if (_loadingMore || _loading) return;
     if (_rows.length >= _total) return;
     if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 240) {
       _fetch();
     }
+  }
+
+  String? _isoDay(DateTime? d) =>
+      d == null ? null : DateFormat('yyyy-MM-dd').format(d);
+
+  void _setDay(DateTime? day) {
+    setState(() {
+      _day = day == null
+          ? null
+          : DateTime(day.year, day.month, day.day);
+    });
+    _fetch(reset: true);
+  }
+
+  void _shiftDay(int delta) {
+    final base = _day ?? _today;
+    _setDay(base.add(Duration(days: delta)));
+  }
+
+  Future<void> _pickDay() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _day ?? _today,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+    );
+    if (picked == null) return;
+    _setDay(picked);
   }
 
   Future<void> _fetch({bool reset = false}) async {
@@ -74,15 +118,14 @@ class _PagedOrdersViewState extends State<PagedOrdersView> {
       setState(() => _loadingMore = true);
     }
     try {
-      final now = DateTime.now();
       final page = await _commandeService.listCommandesPage(
         page: reset ? 0 : _page,
         shipment: _shipment,
         search: _searchController.text,
-        deliveryFrom: widget.todayOnly ? DateFormat('yyyy-MM-dd').format(now) : null,
-        deliveryTo: widget.todayOnly
-            ? DateFormat('yyyy-MM-dd').format(now.add(const Duration(days: 1)))
-            : null,
+        deliveryFrom: _isoDay(_day),
+        deliveryTo: _day == null
+            ? null
+            : _isoDay(_day!.add(const Duration(days: 1))),
       );
       if (!mounted) return;
       setState(() {
@@ -113,6 +156,7 @@ class _PagedOrdersViewState extends State<PagedOrdersView> {
   @override
   Widget build(BuildContext context) {
     final s = context.s;
+    final dayFmt = DateFormat('EEE d MMM', Localizations.localeOf(context).toString());
     return Column(
       children: [
         Padding(
@@ -120,11 +164,67 @@ class _PagedOrdersViewState extends State<PagedOrdersView> {
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              labelText: s.searchByNumber,
+              labelText: s.searchOrdersHint,
               prefixIcon: const Icon(Icons.search),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
             onSubmitted: (_) => _fetch(reset: true),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  if (!widget.todayOnly)
+                    IconButton(
+                      tooltip: s.fromDate,
+                      onPressed: () => _shiftDay(-1),
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: widget.todayOnly ? null : _pickDay,
+                      icon: const Icon(Icons.event_outlined, size: 18),
+                      label: Text(
+                        _day == null
+                            ? s.agendaAllDays
+                            : (_isToday
+                                ? '${s.agendaToday} · ${dayFmt.format(_day!)}'
+                                : dayFmt.format(_day!)),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  if (!widget.todayOnly)
+                    IconButton(
+                      tooltip: s.toDate,
+                      onPressed: () => _shiftDay(1),
+                      icon: const Icon(Icons.chevron_right),
+                    ),
+                ],
+              ),
+              if (!widget.todayOnly)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      if (!_isToday)
+                        TextButton(
+                          onPressed: () => _setDay(_today),
+                          child: Text(s.agendaToday),
+                        ),
+                      if (_day != null)
+                        TextButton(
+                          onPressed: () => _setDay(null),
+                          child: Text(s.agendaAllDays),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ),
         FilterChipBar(

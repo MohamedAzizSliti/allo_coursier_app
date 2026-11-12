@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/monthly_invoice.dart';
 import '../../l10n/l10n.dart';
 import '../../models/commande_model.dart';
 import '../../models/parcel_status.dart';
@@ -33,6 +34,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
   bool _loadingMore = false;
   String? _error;
   String _selectedStatus = 'Tous';
+  DateTime? _from;
+  DateTime? _to;
 
   final List<String> _statusList = [
     'Tous',
@@ -70,6 +73,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   List<CommandeModel> get _filtered {
     return _commandes.where((c) {
+      if (_from != null || _to != null) {
+        final raw = c.deliveryDate ?? c.date;
+        final parsed = raw == null ? null : DateTime.tryParse(raw);
+        if (parsed == null) return false;
+        final local = parsed.toLocal();
+        if (_from != null && local.isBefore(_from!)) return false;
+        if (_to != null && !local.isBefore(_to!)) return false;
+      }
       if (_selectedStatus == 'Payé') return c.paid;
       if (_selectedStatus == 'Non payé') return !c.paid;
       if (_selectedStatus == 'Tous') return true;
@@ -141,6 +152,50 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
+  Future<void> _pickRange() async {
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      initialDateRange: _from != null && _to != null
+          ? DateTimeRange(
+              start: _from!,
+              end: _to!.subtract(const Duration(days: 1)),
+            )
+          : DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now),
+    );
+    if (range == null) return;
+    setState(() {
+      _from = DateTime(range.start.year, range.start.month, range.start.day);
+      _to = DateTime(range.end.year, range.end.month, range.end.day)
+          .add(const Duration(days: 1));
+    });
+  }
+
+  Future<void> _monthlyInvoice() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(now.year, now.month, 1),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      helpText: context.s.chooseMonth,
+    );
+    if (picked == null || !mounted) return;
+    final invoice = buildMonthlyInvoice(
+      orders: _commandes,
+      year: picked.year,
+      month: picked.month,
+    );
+    await showMonthlyInvoicePdf(
+      invoice: invoice,
+      year: picked.year,
+      month: picked.month,
+      expediteurName: SessionController.instance.user?.name,
+    );
+  }
+
   void _printOrder(CommandeModel commande) {
     showPdfPreview(commande);
   }
@@ -163,16 +218,44 @@ class _OrdersScreenState extends State<OrdersScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(10),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: s.searchByNumber,
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      labelText: s.searchOrdersHint,
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onSubmitted: (_) => _fetch(reset: true),
+                  ),
                 ),
-              ),
-              onSubmitted: (_) => _fetch(reset: true),
+                IconButton(
+                  tooltip: s.monthlyInvoice,
+                  onPressed: _monthlyInvoice,
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                ),
+                IconButton(
+                  tooltip: '${s.fromDate} / ${s.toDate}',
+                  onPressed: _pickRange,
+                  icon: Icon(
+                    Icons.date_range,
+                    color: _from != null ? Theme.of(context).colorScheme.primary : null,
+                  ),
+                ),
+                if (_from != null || _to != null)
+                  IconButton(
+                    tooltip: s.cancel,
+                    onPressed: () => setState(() {
+                      _from = null;
+                      _to = null;
+                    }),
+                    icon: const Icon(Icons.clear),
+                  ),
+              ],
             ),
           ),
           FilterChipBar(
@@ -225,6 +308,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 commande: commande,
                                 onView: () => _viewOrderDetails(commande),
                                 onPrint: () => _printOrder(commande),
+                                showDeliveryFee: false,
                               );
                             },
                           ),

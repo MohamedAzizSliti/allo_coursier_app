@@ -15,6 +15,7 @@ class PickedVille {
     required this.gouvernorat,
     required this.ville,
     required this.tarif,
+    this.weekdays = const [],
   });
 
   final String categoryId;
@@ -23,6 +24,8 @@ class PickedVille {
   final String ville;
   /// Delivery base fee from référentiel (`GouvernoratPlace.tarif`).
   final double tarif;
+  /// ISO weekdays 1=Mon…7=Sun from the gouvernorat category (web `place.weekdays`).
+  final List<int> weekdays;
 }
 
 /// Gouvernorat → searchable ville, same flow as web `VillePicker`.
@@ -71,16 +74,23 @@ class _VillePickerState extends State<VillePicker> {
   @override
   void didUpdateWidget(covariant VillePicker oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.value?.categoryId != oldWidget.value?.categoryId) {
-      _categoryId = widget.value?.categoryId;
+    // Parent only stores a full PickedVille. null means "no ville yet", not
+    // "clear gouvernorat" — except after a full reset of the same category
+    // (e.g. form submit). Changing gouvernorat calls onChanged(null) while
+    // _categoryId is already the new id; wiping it left the progress bar stuck.
+    if (widget.value != null && widget.value!.categoryId != _categoryId) {
+      _categoryId = widget.value!.categoryId;
     }
     if (widget.value == null && oldWidget.value != null) {
       setState(() {
         _picked = null;
-        _categoryId = null;
-        _villes = [];
-        _villeTotal = 0;
         _searchController.clear();
+        if (_categoryId == oldWidget.value!.categoryId) {
+          _categoryId = null;
+          _villes = [];
+          _villeTotal = 0;
+          _loadingVilles = false;
+        }
       });
     }
   }
@@ -142,7 +152,10 @@ class _VillePickerState extends State<VillePicker> {
         search: _searchController.text,
         pageSize: _maxOptions,
       );
-      if (!mounted || requestId != _villesRequestId || categoryId != _categoryId) {
+      if (!mounted) return;
+      if (requestId != _villesRequestId) return;
+      if (categoryId != _categoryId) {
+        setState(() => _loadingVilles = false);
         return;
       }
       setState(() {
@@ -206,6 +219,7 @@ class _VillePickerState extends State<VillePicker> {
         gouvernorat: category.label,
         ville: ville.name,
         tarif: category.tarif,
+        weekdays: List<int>.from(category.weekdays),
       ),
     );
   }
